@@ -330,7 +330,7 @@ public class ScrubTest
             Descriptor desc = Descriptor.fromFilename(filename);
 
             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-            try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
+            try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), 1, cfs.metadata, txn)))
             {
 
                 for (String k : keys)
@@ -632,11 +632,12 @@ public class ScrubTest
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
     }
 
-    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, CFMetaData metadata, LifecycleTransaction txn)
+    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, double keySize, CFMetaData metadata, LifecycleTransaction txn)
     {
         SerializationHeader header = new SerializationHeader(true, metadata, metadata.partitionColumns(), EncodingStats.NO_STATS);
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(0);
-        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, metadata, collector, header, txn));
+        SSTableWriter.SSTableCreationInfo info = new SSTableWriter.SSTableCreationInfo(keyCount, keySize, 0, txn);
+        return new TestMultiWriter(new TestWriter(descriptor, info, metadata, collector, header));
     }
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
@@ -652,10 +653,10 @@ public class ScrubTest
      */
     private static class TestWriter extends BigTableWriter
     {
-        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata,
-                   MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
+        TestWriter(Descriptor descriptor, SSTableCreationInfo info, CFMetaData metadata,
+                   MetadataCollector collector, SerializationHeader header)
         {
-            super(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+            super(descriptor, info, metadata, collector, header);
         }
 
         @Override

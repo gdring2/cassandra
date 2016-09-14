@@ -69,11 +69,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         protected boolean openResult;
     }
 
-    protected SSTableWriter(Descriptor descriptor, 
-                            long keyCount, 
-                            long repairedAt, 
-                            CFMetaData metadata, 
-                            MetadataCollector metadataCollector, 
+    protected SSTableWriter(Descriptor descriptor,
+                            long keyCount,
+                            long repairedAt,
+                            CFMetaData metadata,
+                            MetadataCollector metadataCollector,
                             SerializationHeader header)
     {
         super(descriptor, components(metadata), metadata);
@@ -84,16 +84,64 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata, descriptor.version, header);
     }
 
+
+    public final static class SSTableCreationInfo
+    {
+        /** The number of keys in the sstable */
+        public final long keyCount;
+
+        /** An estimate of the average key size */
+        public final double keySize;
+
+        /** The time when the sstable was repaired */
+        public final long repairedAt;
+
+        /** The transaction that is creating this sstable */
+        public final LifecycleTransaction txn;
+
+        public SSTableCreationInfo(long keyCount, long repairedAt, LifecycleTransaction txn)
+        {
+            this(keyCount, SSTableReader.getApproximateKeySize(txn.originals()), repairedAt, txn);
+        }
+
+        public SSTableCreationInfo(long keyCount, double keySize, long repairedAt, LifecycleTransaction txn)
+        {
+            this.keyCount = keyCount;
+            this.keySize = keySize;
+            this.repairedAt = repairedAt;
+            this.txn = txn;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[Key count %d, size %f, repaired at %d, txn %s]",
+                                 keyCount, keySize, repairedAt, txn);
+        }
+    }
+
     public static SSTableWriter create(Descriptor descriptor,
-                                       Long keyCount,
-                                       Long repairedAt,
+                                       SSTableCreationInfo info,
+                                       CFMetaData metadata,
+                                       MetadataCollector metadataCollector,
+                                       SerializationHeader header)
+    {
+
+        Factory writerFactory = descriptor.getFormat().getWriterFactory();
+        return writerFactory.open(descriptor, info, metadata, metadataCollector, header);
+    }
+
+    public static SSTableWriter create(Descriptor descriptor,
+                                       long keyCount,
+                                       long repairedAt,
                                        CFMetaData metadata,
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
                                        LifecycleTransaction txn)
     {
-        Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, txn);
+
+        SSTableCreationInfo info = new SSTableCreationInfo(keyCount, repairedAt, txn);
+        return create(descriptor, info, metadata, metadataCollector, header);
     }
 
     public static SSTableWriter create(Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
@@ -111,7 +159,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+        SSTableCreationInfo info = new SSTableCreationInfo(keyCount, repairedAt, txn);
+        return create(descriptor, info, metadata, collector, header);
     }
 
     public static SSTableWriter create(String filename, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header,LifecycleTransaction txn)
@@ -280,11 +329,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static abstract class Factory
     {
         public abstract SSTableWriter open(Descriptor descriptor,
-                                           long keyCount,
-                                           long repairedAt,
+                                           SSTableCreationInfo info,
                                            CFMetaData metadata,
                                            MetadataCollector metadataCollector,
-                                           SerializationHeader header,
-                                           LifecycleTransaction txn);
+                                           SerializationHeader header);
     }
 }

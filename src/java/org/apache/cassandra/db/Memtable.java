@@ -48,9 +48,12 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -269,6 +272,15 @@ public class Memtable implements Comparable<Memtable>
         return partitions.size();
     }
 
+    public double avgKeySize()
+    {
+        OptionalDouble ret = partitions.keySet().stream()
+                                       .filter(p -> p instanceof DecoratedKey)
+                                       .mapToInt(p -> ((DecoratedKey)p).getKey().remaining())
+                                       .average();
+        return ret.orElse(0);
+    }
+
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
@@ -435,13 +447,15 @@ public class Memtable implements Comparable<Memtable>
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
                     .commitLogIntervals(new IntervalSet(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
+            SSTableWriter.SSTableCreationInfo info = new SSTableWriter.SSTableCreationInfo(partitionCount(),
+                                                                                           avgKeySize(),
+                                                                                           ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                                           txn);
             return new SSTableTxnWriter(txn,
                                         cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
-                                                                     (long) partitions.size(),
-                                                                     ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                     info,
                                                                      sstableMetadataCollector,
-                                                                     new SerializationHeader(true, cfs.metadata, columns, stats),
-                                                                     txn));
+                                                                     new SerializationHeader(true, cfs.metadata, columns, stats)));
         }
         catch (Throwable t)
         {

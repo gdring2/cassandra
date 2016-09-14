@@ -57,16 +57,14 @@ public class BigTableWriter extends SSTableWriter
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
 
-    public BigTableWriter(Descriptor descriptor, 
-                          Long keyCount, 
-                          Long repairedAt, 
-                          CFMetaData metadata, 
-                          MetadataCollector metadataCollector, 
-                          SerializationHeader header,
-                          LifecycleTransaction txn)
+    public BigTableWriter(Descriptor descriptor,
+                          SSTableWriter.SSTableCreationInfo info,
+                          CFMetaData metadata,
+                          MetadataCollector metadataCollector,
+                          SerializationHeader header)
     {
-        super(descriptor, keyCount, repairedAt, metadata, metadataCollector, header);
-        txn.trackNew(this); // must track before any files are created
+        super(descriptor, info.keyCount, info.repairedAt, metadata, metadataCollector, header);
+        info.txn.trackNew(this); // must track before any files are created
 
         if (compression)
         {
@@ -81,7 +79,11 @@ public class BigTableWriter extends SSTableWriter
             dataFile = SequentialWriter.open(new File(getFilename()), new File(descriptor.filenameFor(Component.CRC)));
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), false);
         }
-        iwriter = new IndexWriter(keyCount, dataFile);
+
+        iwriter = new IndexWriter(keyCount, info.keySize, dataFile);
+
+        if (logger.isTraceEnabled())
+            logger.trace("Created table writer for {} with info {}", descriptor, info);
     }
 
     public void mark()
@@ -370,11 +372,11 @@ public class BigTableWriter extends SSTableWriter
         public final IFilter bf;
         private DataPosition mark;
 
-        IndexWriter(long keyCount, final SequentialWriter dataFile)
+        IndexWriter(long keyCount, double keySize, final SequentialWriter dataFile)
         {
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
-            summary = new IndexSummaryBuilder(keyCount, metadata.params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
+            summary = new IndexSummaryBuilder(keyCount, keySize, metadata.params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
             // register listeners to be alerted when the data files are flushed
             indexFile.setPostFlushListener(new Runnable()

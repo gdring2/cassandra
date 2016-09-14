@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,6 +65,7 @@ public class IndexSummary extends WrappedSharedCloseable
     // we split our data into two ranges: offsets (indexing into entries),
     // and entries containing the summary data
     private final Memory offsets;
+    // the number of offsets, which is the same as the number of entries
     private final int offsetCount;
     // entries is a list of (partition key, index file offset) pairs
     private final Memory entries;
@@ -200,6 +202,19 @@ public class IndexSummary extends WrappedSharedCloseable
     public long getEstimatedKeyCount()
     {
         return ((long) getMaxNumberOfEntries() + 1) * minIndexInterval;
+    }
+
+    /**
+     * Returns an estimate of the key size by looking at the total entry size and the total number of entries.
+     * Since each entry contains the key and a long, we subtract the size of a long from the average size.
+     */
+    public double getEstimatedKeySize()
+    {
+        if (offsetCount == 0)
+            return 0;
+
+        double averageEntrySize = (double)entriesLength / offsetCount; // the total size for entries divided by the number of entries
+        return averageEntrySize - TypeSizes.sizeof((long)0); // each entry contains the key and a long, so we subtract the size of the long from the avg
     }
 
     public int size()

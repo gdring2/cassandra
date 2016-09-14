@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Lists;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -43,7 +44,173 @@ import static org.junit.Assert.*;
 
 public class IndexSummaryTest
 {
+    final static Random random = new Random();
     IPartitioner partitioner = Util.testPartitioner();
+
+    @BeforeClass
+    public static void setup()
+    {
+        final long seed = System.nanoTime();
+        System.out.println("Using seed: " + seed);
+        random.setSeed(seed);
+    }
+
+    @Test
+    public void testIndexSummaryProperties()
+    {
+        final int numKeys = 100;
+        final int keySize = 1000;
+        final int minIndexInterval = 1;
+        final List<DecoratedKey> keys = new ArrayList<>(numKeys);
+
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, keySize, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize];
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                keys.add(key);
+                builder.maybeAddEntry(key, i);
+            }
+
+            try(IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertEquals(numKeys, keys.size());
+                assertEquals(minIndexInterval, indexSummary.getMinIndexInterval());
+                assertEquals(numKeys, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 1, indexSummary.getEstimatedKeyCount());
+                assertEquals(keySize, indexSummary.getEstimatedKeySize(), 0);
+
+                for (int i = 0; i < numKeys; i++)
+                    assertEquals(keys.get(i).getKey(), ByteBuffer.wrap(indexSummary.getKey(i)));
+            }
+
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    /**
+     * Test that if we don't provide an estimated key size then things still work.
+     */
+    @Test
+    public void testMissingKeyEstimate()
+    {
+        final int keySize = 40;
+        final int numKeys = 100;
+        final int minIndexInterval = 1;
+        final List<DecoratedKey> keys = new ArrayList<>(numKeys);
+
+        // do not pass key size to the constructor, use 0 instead
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, 0, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize];
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                keys.add(key);
+                builder.maybeAddEntry(key, i);
+            }
+
+            try(IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertEquals(numKeys, keys.size());
+                assertEquals(minIndexInterval, indexSummary.getMinIndexInterval());
+                assertEquals(numKeys, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 1, indexSummary.getEstimatedKeyCount());
+                assertEquals(keySize, indexSummary.getEstimatedKeySize(), 0);
+
+                for (int i = 0; i < numKeys; i++)
+                    assertEquals(keys.get(i).getKey(), ByteBuffer.wrap(indexSummary.getKey(i)));
+            }
+
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+
+    /**
+     * Test an index summary whose total key size is bigger than 2GB and
+     * ensure that the min index interval is automatically increased,
+     * see CASSANDRA-12014.
+     */
+    @Test
+    public void tesLargeIndexSummary()
+    {
+        final int numKeys = 1000000;
+        final int keySize = 3000;
+        final int minIndexInterval = 1;
+
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, keySize, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize];
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                builder.maybeAddEntry(key, i);
+            }
+
+            try(IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertEquals(minIndexInterval * 2, indexSummary.getMinIndexInterval());
+                assertEquals(numKeys / 2, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 2, indexSummary.getEstimatedKeyCount());
+                assertEquals(keySize, indexSummary.getEstimatedKeySize(), 0);
+            }
+
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Test an index summary whose total key size is bigger than 2GB and
+     * whose keys are even bigger than estimated, so that at some point we
+     * hit the 2GB limit and stop sampling, see CASSANDRA-12014.
+     */
+    @Test
+    public void tesUnexpectedlyLargeKeys()
+    {
+        final int numKeys = 1000000;
+        final int keySize = 3000;
+        final int minIndexInterval = 1;
+
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, keySize, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize * 2]; // use twice the estimated key size
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                builder.maybeAddEntry(key, i);
+            }
+
+            try(IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertEquals(minIndexInterval * 2, indexSummary.getMinIndexInterval());
+                assertEquals(numKeys / 2, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 2, indexSummary.getEstimatedKeyCount());
+                assertEquals(keySize * 2, indexSummary.getEstimatedKeySize(), 0);
+            }
+
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Test
     public void testGetKey()
@@ -98,7 +265,7 @@ public class IndexSummaryTest
     public void testAddEmptyKey() throws Exception
     {
         IPartitioner p = new RandomPartitioner();
-        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL))
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, 1, BASE_SAMPLING_LEVEL))
         {
             builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
             IndexSummary summary = builder.build(p);
@@ -122,7 +289,11 @@ public class IndexSummaryTest
     private Pair<List<DecoratedKey>, IndexSummary> generateRandomIndex(int size, int interval)
     {
         List<DecoratedKey> list = Lists.newArrayList();
-        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(), interval, BASE_SAMPLING_LEVEL))
+        long keySize = ByteBufferUtil.bytes(UUID.randomUUID()).remaining();
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(),
+                                                                   keySize,
+                                                                   interval,
+                                                                   BASE_SAMPLING_LEVEL))
         {
             for (int i = 0; i < size; i++)
             {

@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -293,6 +294,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 count += sstable.estimatedKeys();
         }
         return count;
+    }
+
+    /**
+     * Iterate over the given sstables to return an average of the key size approximated by
+     * each sstable.
+     */
+    public static double getApproximateKeySize(Iterable<SSTableReader> sstables)
+    {
+        OptionalDouble ret = StreamSupport.stream(sstables.spliterator(), false)
+                                          .filter(sstable -> sstable.indexSummary != null)
+                                          .mapToDouble(SSTableReader::estimatedKeySize).average();
+        return ret.orElseGet(() -> 0);
     }
 
     /**
@@ -790,14 +803,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             long indexSize = primaryIndex.length();
             long histogramCount = sstableMetadata.estimatedPartitionSize.count();
+            EstimateKeysFromIndex estimateKeys = new EstimateKeysFromIndex(primaryIndex, descriptor);
             long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedPartitionSize.isOverflowed()
                     ? histogramCount
-                    : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
+                    : estimateKeys.getEstimatedKeys(); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
                 bf = FilterFactory.getFilter(estimatedKeys, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
 
-            try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.params.minIndexInterval, samplingLevel))
+            try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys,
+                                                                                                     estimateKeys.getEstimatedKeySize(),
+                                                                                                     metadata.params.minIndexInterval,
+                                                                                                     samplingLevel))
             {
                 long indexPosition;
                 RowIndexEntry.IndexSerializer rowIndexSerializer = descriptor.getFormat().getIndexSerializer(metadata, descriptor.version, header);
@@ -985,6 +1002,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason)
     {
+        assert indexSummary != null;
         return cloneAndReplace(newFirst, reason, indexSummary.sharedCopy());
     }
 
@@ -1082,6 +1100,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
         assert descriptor.version.hasSamplingLevel();
+        assert indexSummary != null;
 
         synchronized (tidy.global)
         {
@@ -1137,7 +1156,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             long indexSize = primaryIndex.length();
-            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata.params.minIndexInterval, newSamplingLevel))
+            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), estimatedKeySize(),
+                                                                              metadata.params.minIndexInterval, newSamplingLevel))
             {
                 long indexPosition;
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
@@ -1162,22 +1182,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public int getIndexSummarySamplingLevel()
     {
-        return indexSummary.getSamplingLevel();
+        return indexSummary == null ? 0 : indexSummary.getSamplingLevel();
     }
 
     public long getIndexSummaryOffHeapSize()
     {
-        return indexSummary.getOffHeapSize();
+        return indexSummary == null ? 0 : indexSummary.getOffHeapSize();
     }
 
     public int getMinIndexInterval()
     {
-        return indexSummary.getMinIndexInterval();
+        return indexSummary == null ? 0 : indexSummary.getMinIndexInterval();
     }
 
     public double getEffectiveIndexInterval()
     {
-        return indexSummary.getEffectiveIndexInterval();
+        return indexSummary == null ? 0 : indexSummary.getEffectiveIndexInterval();
     }
 
     public void releaseSummary()
@@ -1203,6 +1223,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
             key = first;
 
+        assert indexSummary != null;
         return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
     }
 
@@ -1288,7 +1309,15 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long estimatedKeys()
     {
-        return indexSummary.getEstimatedKeyCount();
+        return indexSummary == null ? 0 : indexSummary.getEstimatedKeyCount();
+    }
+
+    /**
+     * @return An estimate of the size of the keys in this SSTable based on the index summary.
+     */
+    public double estimatedKeySize()
+    {
+        return indexSummary == null ? 0 : indexSummary.getEstimatedKeySize();
     }
 
     /**
@@ -1297,6 +1326,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
+        if (indexSummary == null)
+            return 0;
+
         long sampleKeyCount = 0;
         List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
         for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
@@ -1313,7 +1345,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public int getIndexSummarySize()
     {
-        return indexSummary.size();
+        return indexSummary == null ? 0 : indexSummary.size();
     }
 
     /**
@@ -1321,7 +1353,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public int getMaxIndexSummarySize()
     {
-        return indexSummary.getMaxNumberOfEntries();
+        return indexSummary == null ? 0 : indexSummary.getMaxNumberOfEntries();
     }
 
     /**
@@ -1329,7 +1361,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public byte[] getIndexSummaryKey(int index)
     {
-        return indexSummary.getKey(index);
+        return indexSummary == null ? new byte[0] : indexSummary.getKey(index);
     }
 
     private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
@@ -1376,6 +1408,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
+        if (indexSummary == null)
+            return Collections.emptyList();
+
         final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
 
         if (indexRanges.isEmpty())
@@ -1694,7 +1729,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Direct I/O SSTableScanner over an iterator of bounds.
      *
-     * @param bounds the keys to cover
+     * @param rangeIterator the keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
     public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
@@ -2024,7 +2059,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         dfile.addTo(identities);
         ifile.addTo(identities);
         bf.addTo(identities);
-        indexSummary.addTo(identities);
+        if (indexSummary != null)
+            indexSummary.addTo(identities);
 
     }
 

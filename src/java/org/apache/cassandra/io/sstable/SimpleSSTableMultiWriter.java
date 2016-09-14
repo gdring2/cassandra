@@ -104,14 +104,12 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     @SuppressWarnings("resource") // SimpleSSTableMultiWriter closes writer
     public static SSTableMultiWriter create(Descriptor descriptor,
-                                            long keyCount,
-                                            long repairedAt,
+                                            SSTableWriter.SSTableCreationInfo info,
                                             CFMetaData cfm,
                                             MetadataCollector metadataCollector,
-                                            SerializationHeader header,
-                                            LifecycleTransaction txn)
+                                            SerializationHeader header)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, cfm, metadataCollector, header, txn);
+        SSTableWriter writer = SSTableWriter.create(descriptor, info, cfm, metadataCollector, header);
         return new SimpleSSTableMultiWriter(writer);
     }
 }

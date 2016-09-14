@@ -234,22 +234,63 @@ public abstract class SSTable
         return components;
     }
 
-    /** @return An estimate of the number of keys contained in the given index file. */
-    protected long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
+    /**
+     * A small utility class to estimate the number of keys contained in the given index file
+     * and their average size.
+     */
+    protected static final class EstimateKeysFromIndex
     {
-        // collect sizes for the first 10000 keys, or first 10 megabytes of data
-        final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
-        int keys = 0;
-        while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+        private final RandomAccessReader ifile;
+        private final Descriptor descriptor;
+        private long estimatedKeys;
+        private double estimatedKeySize;
+
+        public EstimateKeysFromIndex(RandomAccessReader ifile, Descriptor descriptor)
         {
-            ByteBufferUtil.skipShortLength(ifile);
-            RowIndexEntry.Serializer.skip(ifile, descriptor.version);
-            keys++;
+            this.ifile = ifile;
+            this.descriptor = descriptor;
+            this.estimatedKeys = -1;
+            this.estimatedKeySize = -1;
         }
-        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
-        long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
-        ifile.seek(0);
-        return estimatedRows;
+
+        public long getEstimatedKeys() throws IOException
+        {
+            if (estimatedKeys == -1)
+                estimate();
+
+            assert estimatedKeys != -1 : "Failed to estimate number of keys from primary index " + ifile.getPath();
+            return estimatedKeys;
+        }
+
+        public double getEstimatedKeySize() throws IOException
+        {
+            if (estimatedKeySize == -1)
+                estimate();
+
+            assert estimatedKeySize != -1 : "Failed to estimate avg key size from primary index " + ifile.getPath();
+            return estimatedKeySize;
+        }
+
+        private void estimate() throws IOException
+        {
+            // collect sizes for the first 10000 keys, or first 10 megabytes of data
+            final int SAMPLES_CAP = 10000, BYTES_CAP = (int) Math.min(10000000, ifile.length());
+            int keys = 0;
+            long totSize = 0;
+            while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+            {
+                int keySize = ByteBufferUtil.readShortLength(ifile);
+                ifile.skipBytesFully(keySize);
+                totSize += keySize;
+
+                RowIndexEntry.Serializer.skip(ifile, descriptor.version);
+                keys++;
+            }
+            assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
+            estimatedKeySize = (double)totSize / keys;
+            estimatedKeys = ifile.length() / (ifile.getFilePointer() / keys);
+            ifile.seek(0);
+        }
     }
 
     public long bytesOnDisk()

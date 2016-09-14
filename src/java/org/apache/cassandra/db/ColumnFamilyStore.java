@@ -70,6 +70,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
@@ -472,12 +473,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(sstableLevel);
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, collector, header, txn);
+        Iterable<SSTableReader> sstables = txn.originals().isEmpty() ? getLiveSSTables() : txn.originals();
+        SSTableWriter.SSTableCreationInfo info = new SSTableWriter.SSTableCreationInfo(keyCount, SSTableReader.getApproximateKeySize(sstables), repairedAt, txn);
+        return createSSTableMultiWriter(descriptor, info, collector, header);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, MetadataCollector metadataCollector, SerializationHeader header, LifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, SSTableWriter.SSTableCreationInfo info, MetadataCollector metadataCollector, SerializationHeader header)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, metadataCollector, header, txn);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, info, metadataCollector, header);
     }
 
     public boolean supportsEarlyOpen()

@@ -63,6 +63,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.ksName, metadata.cfName, formatType),
                                        0,
+                                       0,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        0,
                                        new SerializationHeader(true, metadata, columns, EncodingStats.NO_STATS));
