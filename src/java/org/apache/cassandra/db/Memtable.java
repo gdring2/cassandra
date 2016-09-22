@@ -272,15 +272,6 @@ public class Memtable implements Comparable<Memtable>
         return partitions.size();
     }
 
-    public double avgKeySize()
-    {
-        OptionalDouble ret = partitions.keySet().stream()
-                                       .filter(p -> p instanceof DecoratedKey)
-                                       .mapToInt(p -> ((DecoratedKey)p).getKey().remaining())
-                                       .average();
-        return ret.orElse(0);
-    }
-
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
@@ -447,8 +438,8 @@ public class Memtable implements Comparable<Memtable>
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
                     .commitLogIntervals(new IntervalSet(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
-            SSTableWriter.SSTableCreationInfo info = new SSTableWriter.SSTableCreationInfo(partitionCount(),
-                                                                                           avgKeySize(),
+            SSTableWriter.SSTableCreationInfo info = new SSTableWriter.SSTableCreationInfo(partitions.size(),
+                                                                                           estimateKeySize(),
                                                                                            ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                                            txn);
             return new SSTableTxnWriter(txn,
@@ -463,6 +454,16 @@ public class Memtable implements Comparable<Memtable>
                 txn.close();
             throw t;
         }
+    }
+
+    private double estimateKeySize()
+    {
+        OptionalDouble ret = partitions.keySet().stream()
+                                       .filter(p -> p instanceof DecoratedKey)
+                                       .limit(50)
+                                       .mapToInt(p -> ((DecoratedKey)p).getKey().remaining())
+                                       .average();
+        return ret.orElse(0);
     }
 
     private static int estimateRowOverhead(final int count)
