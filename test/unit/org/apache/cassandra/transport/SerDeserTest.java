@@ -45,11 +45,11 @@ public class SerDeserTest
     @Test
     public void collectionSerDeserTest() throws Exception
     {
-        collectionSerDeserTest(3);
-        collectionSerDeserTest(4);
+        collectionSerDeserTest(ProtocolVersion.V3);
+        collectionSerDeserTest(ProtocolVersion.V4);
     }
 
-    public void collectionSerDeserTest(int version) throws Exception
+    public void collectionSerDeserTest(ProtocolVersion version) throws Exception
     {
         // Lists
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
@@ -92,11 +92,11 @@ public class SerDeserTest
     @Test
     public void eventSerDeserTest() throws Exception
     {
-        eventSerDeserTest(3);
-        eventSerDeserTest(4);
+        eventSerDeserTest(ProtocolVersion.V3);
+        eventSerDeserTest(ProtocolVersion.V4);
     }
 
-    public void eventSerDeserTest(int version) throws Exception
+    public void eventSerDeserTest(ProtocolVersion version) throws Exception
     {
         List<Event> events = new ArrayList<>();
 
@@ -115,14 +115,14 @@ public class SerDeserTest
         events.add(new SchemaChange(SchemaChange.Change.UPDATED, SchemaChange.Target.TABLE, "ks", "table"));
         events.add(new SchemaChange(SchemaChange.Change.DROPPED, SchemaChange.Target.TABLE, "ks", "table"));
 
-        if (version >= 3)
+        if (version.compareTo(ProtocolVersion.V3) >= 0)
         {
             events.add(new SchemaChange(SchemaChange.Change.CREATED, SchemaChange.Target.TYPE, "ks", "type"));
             events.add(new SchemaChange(SchemaChange.Change.UPDATED, SchemaChange.Target.TYPE, "ks", "type"));
             events.add(new SchemaChange(SchemaChange.Change.DROPPED, SchemaChange.Target.TYPE, "ks", "type"));
         }
 
-        if (version >= 4)
+        if (version.compareTo(ProtocolVersion.V4) >= 0)
         {
             List<String> moreTypes = Arrays.asList("text", "bigint");
 
@@ -218,16 +218,16 @@ public class SerDeserTest
         // a UDT should alway be serialized with version 3 of the protocol. Which is why we don't use 'version'
         // on purpose below.
 
-        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserializeForNativeProtocol(fields[1], 3));
+        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserializeForNativeProtocol(fields[1], ProtocolVersion.V3));
 
         LinkedHashSet<String> s = new LinkedHashSet<>();
         s.addAll(Arrays.asList("bar", "foo"));
-        assertEquals(s, st.getSerializer().deserializeForNativeProtocol(fields[2], 3));
+        assertEquals(s, st.getSerializer().deserializeForNativeProtocol(fields[2], ProtocolVersion.V3));
 
         LinkedHashMap<String, Long> m = new LinkedHashMap<>();
         m.put("bar", 12L);
         m.put("foo", 24L);
-        assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(fields[3], 3));
+        assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(fields[3], ProtocolVersion.V3));
     }
 
     @Test
@@ -238,24 +238,24 @@ public class SerDeserTest
             columnNames.add(new ColumnSpecification("ks", "cf", new ColumnIdentifier("col" + i, false), Int32Type.instance));
 
         ResultSet.PreparedMetadata meta = new ResultSet.PreparedMetadata(columnNames, new short[]{2, 1});
-        ByteBuf buf = Unpooled.buffer(meta.codec.encodedSize(meta, Server.VERSION_4));
-        meta.codec.encode(meta, buf, Server.VERSION_4);
-        ResultSet.PreparedMetadata decodedMeta = meta.codec.decode(buf, Server.VERSION_4);
+        ByteBuf buf = Unpooled.buffer(meta.codec.encodedSize(meta, ProtocolVersion.V4));
+        meta.codec.encode(meta, buf, ProtocolVersion.V4);
+        ResultSet.PreparedMetadata decodedMeta = meta.codec.decode(buf, ProtocolVersion.V4);
 
         assertEquals(meta, decodedMeta);
 
         // v3 encoding doesn't include partition key bind indexes
-        buf = Unpooled.buffer(meta.codec.encodedSize(meta, Server.VERSION_3));
-        meta.codec.encode(meta, buf, Server.VERSION_3);
-        decodedMeta = meta.codec.decode(buf, Server.VERSION_3);
+        buf = Unpooled.buffer(meta.codec.encodedSize(meta, ProtocolVersion.V3));
+        meta.codec.encode(meta, buf, ProtocolVersion.V3);
+        decodedMeta = meta.codec.decode(buf, ProtocolVersion.V3);
 
         assertNotSame(meta, decodedMeta);
 
         // however, if there are no partition key indexes, they should be the same
         ResultSet.PreparedMetadata metaWithoutIndexes = new ResultSet.PreparedMetadata(columnNames, null);
-        buf = Unpooled.buffer(metaWithoutIndexes.codec.encodedSize(metaWithoutIndexes, Server.VERSION_4));
-        metaWithoutIndexes.codec.encode(metaWithoutIndexes, buf, Server.VERSION_4);
-        ResultSet.PreparedMetadata decodedMetaWithoutIndexes = metaWithoutIndexes.codec.decode(buf, Server.VERSION_4);
+        buf = Unpooled.buffer(metaWithoutIndexes.codec.encodedSize(metaWithoutIndexes, ProtocolVersion.V4));
+        metaWithoutIndexes.codec.encode(metaWithoutIndexes, buf, ProtocolVersion.V4);
+        ResultSet.PreparedMetadata decodedMetaWithoutIndexes = metaWithoutIndexes.codec.decode(buf, ProtocolVersion.V4);
 
         assertEquals(decodedMeta, decodedMetaWithoutIndexes);
     }

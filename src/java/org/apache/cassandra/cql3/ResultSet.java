@@ -177,7 +177,7 @@ public class ResultSet
          *   - rows count (4 bytes)
          *   - rows
          */
-        public ResultSet decode(ByteBuf body, int version)
+        public ResultSet decode(ByteBuf body, ProtocolVersion version)
         {
             ResultMetadata m = ResultMetadata.codec.decode(body, version);
             int rowCount = body.readInt();
@@ -191,7 +191,7 @@ public class ResultSet
             return rs;
         }
 
-        public void encode(ResultSet rs, ByteBuf dest, int version)
+        public void encode(ResultSet rs, ByteBuf dest, ProtocolVersion version)
         {
             ResultMetadata.codec.encode(rs.metadata, dest, version);
             dest.writeInt(rs.rows.size());
@@ -204,7 +204,7 @@ public class ResultSet
             }
         }
 
-        public int encodedSize(ResultSet rs, int version)
+        public int encodedSize(ResultSet rs, ProtocolVersion version)
         {
             int size = ResultMetadata.codec.encodedSize(rs.metadata, version) + 4;
             for (List<ByteBuffer> row : rs.rows)
@@ -320,7 +320,7 @@ public class ResultSet
 
         private static class Codec implements CBCodec<ResultMetadata>
         {
-            public ResultMetadata decode(ByteBuf body, int version)
+            public ResultMetadata decode(ByteBuf body, ProtocolVersion version)
             {
                 // flags & column count
                 int iflags = body.readInt();
@@ -358,13 +358,14 @@ public class ResultSet
                 return new ResultMetadata(flags, names, names.size(), state);
             }
 
-            public void encode(ResultMetadata m, ByteBuf dest, int version)
+            public void encode(ResultMetadata m, ByteBuf dest, ProtocolVersion version)
             {
                 boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
 
-                assert version > 1 || (!hasMorePages && !noMetadata): "version = " + version + ", flags = " + m.flags;
+                assert version.compareTo(ProtocolVersion.V1) > 0 || (!hasMorePages && !noMetadata)
+                    : "version = " + version + ", flags = " + m.flags;
 
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.columnCount);
@@ -394,7 +395,7 @@ public class ResultSet
                 }
             }
 
-            public int encodedSize(ResultMetadata m, int version)
+            public int encodedSize(ResultMetadata m, ProtocolVersion version)
             {
                 boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
@@ -498,7 +499,7 @@ public class ResultSet
 
         private static class Codec implements CBCodec<PreparedMetadata>
         {
-            public PreparedMetadata decode(ByteBuf body, int version)
+            public PreparedMetadata decode(ByteBuf body, ProtocolVersion version)
             {
                 // flags & column count
                 int iflags = body.readInt();
@@ -507,7 +508,7 @@ public class ResultSet
                 EnumSet<Flag> flags = Flag.deserialize(iflags);
 
                 short[] partitionKeyBindIndexes = null;
-                if (version >= Server.VERSION_4)
+                if (version.compareTo(ProtocolVersion.V4) >= 0)
                 {
                     int numPKNames = body.readInt();
                     if (numPKNames > 0)
@@ -541,13 +542,13 @@ public class ResultSet
                 return new PreparedMetadata(flags, names, partitionKeyBindIndexes);
             }
 
-            public void encode(PreparedMetadata m, ByteBuf dest, int version)
+            public void encode(PreparedMetadata m, ByteBuf dest, ProtocolVersion version)
             {
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.names.size());
 
-                if (version >= Server.VERSION_4)
+                if (version.compareTo(ProtocolVersion.V4) >= 0)
                 {
                     // there's no point in providing partition key bind indexes if the statements affect multiple tables
                     if (m.partitionKeyBindIndexes == null || !globalTablesSpec)
@@ -580,7 +581,7 @@ public class ResultSet
                 }
             }
 
-            public int encodedSize(PreparedMetadata m, int version)
+            public int encodedSize(PreparedMetadata m, ProtocolVersion version)
             {
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 int size = 8;
@@ -590,7 +591,7 @@ public class ResultSet
                     size += CBUtil.sizeOfString(m.names.get(0).cfName);
                 }
 
-                if (m.partitionKeyBindIndexes != null && version >= Server.VERSION_4)
+                if (m.partitionKeyBindIndexes != null && version.compareTo(ProtocolVersion.V4) >= 0)
                     size += 4 + 2 * m.partitionKeyBindIndexes.length;
 
                 for (ColumnSpecification name : m.names)

@@ -31,7 +31,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -45,7 +45,7 @@ public class PagingStateTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    private PagingState makeSomePagingState(int protocolVersion)
+    private PagingState makeSomePagingState(ProtocolVersion protocolVersion)
     {
         CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
                                                 .addPartitionKey("k", AsciiType.instance)
@@ -78,9 +78,9 @@ public class PagingStateTest
          *     PagingState state = new PagingState(pk, cn.toByteBuffer(), 10);
          *     System.out.println("PagingState = " + ByteBufferUtil.bytesToHex(state.serialize()));
          */
-        PagingState state = makeSomePagingState(Server.VERSION_3);
+        PagingState state = makeSomePagingState(ProtocolVersion.V3);
 
-        String serializedState = ByteBufferUtil.bytesToHex(state.serialize(Server.VERSION_3));
+        String serializedState = ByteBufferUtil.bytesToHex(state.serialize(ProtocolVersion.V3));
         // Note that we don't assert exact equality because we know 3.0 nodes include the "remainingInPartition" number
         // that is not present on 2.1/2.2 nodes. We know this is ok however because we know that 2.1/2.2 nodes will ignore
         // anything remaining once they have properly deserialized a paging state.
@@ -90,18 +90,18 @@ public class PagingStateTest
     @Test
     public void testSerializeDeserializeV3()
     {
-        PagingState state = makeSomePagingState(Server.VERSION_3);
-        ByteBuffer serialized = state.serialize(Server.VERSION_3);
-        assertEquals(serialized.remaining(), state.serializedSize(Server.VERSION_3));
-        assertEquals(state, PagingState.deserialize(serialized, Server.VERSION_3));
+        PagingState state = makeSomePagingState(ProtocolVersion.V3);
+        ByteBuffer serialized = state.serialize(ProtocolVersion.V3);
+        assertEquals(serialized.remaining(), state.serializedSize(ProtocolVersion.V3));
+        assertEquals(state, PagingState.deserialize(serialized, ProtocolVersion.V3));
     }
 
     @Test
     public void testSerializeDeserializeV4()
     {
-        PagingState state = makeSomePagingState(Server.VERSION_4);
-        ByteBuffer serialized = state.serialize(Server.VERSION_4);
-        assertEquals(serialized.remaining(), state.serializedSize(Server.VERSION_4));
-        assertEquals(state, PagingState.deserialize(serialized, Server.VERSION_4));
+        PagingState state = makeSomePagingState(ProtocolVersion.V4);
+        ByteBuffer serialized = state.serialize(ProtocolVersion.V4);
+        assertEquals(serialized.remaining(), state.serializedSize(ProtocolVersion.V4));
+        assertEquals(state, PagingState.deserialize(serialized, ProtocolVersion.V4));
     }
 }
