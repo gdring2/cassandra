@@ -134,8 +134,8 @@ public class MessageIn<T>
         long sentConstructionTime = (currentTime & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
 
         // Because nodes may not have their clock perfectly in sync, it's actually possible the sentConstructionTime is
-        // lower than the currentTime (the received time). If that's the case, as we definitively know there is a lack
-        // of proper synchronziation of the clock, the ignore sentConstructionTime. We also ignore that
+        // later than the currentTime (the received time). If that's the case, as we definitively know there is a lack
+        // of proper synchronziation of the clock, we ignore sentConstructionTime. We also ignore that
         // sentConstructionTime if we're told to.
         long elapsed = currentTime - sentConstructionTime;
         if (elapsed > 0)
@@ -154,7 +154,7 @@ public class MessageIn<T>
     }
 
     /**
-     * Whether the message has crossed the node boundary, that is whether it originate from the local node.
+     * Whether the message has crossed the node boundary, that is whether it originated from another node.
      *
      */
     public boolean isCrossNode()

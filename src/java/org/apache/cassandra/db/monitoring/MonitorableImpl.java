@@ -40,7 +40,7 @@ public abstract class MonitorableImpl implements Monitorable
      */
     public void setMonitoringTime(long constructionTime, boolean isCrossNode, long timeout, long slowTimeout)
     {
-        assert constructionTime >= 0:
+        assert constructionTime >= 0;
         this.constructionTime = constructionTime;
         this.isCrossNode = isCrossNode;
         this.timeout = timeout;

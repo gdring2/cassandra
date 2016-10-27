@@ -1163,16 +1163,16 @@ public final class MessagingService implements MessagingServiceMBean
         incrementDroppedMessages(message.verb, timeTaken, message.isCrossNode());
     }
 
-    public void incrementDroppedMessages(Verb verb, long timeTaken, boolean isCrossNodeTimeout)
+    public void incrementDroppedMessages(Verb verb, long timeTaken, boolean isCrossNode)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
-        incrementDroppedMessages(droppedMessagesMap.get(verb), timeTaken, isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessagesMap.get(verb), timeTaken, isCrossNode);
     }
 
-    public void incrementDroppedMessages(Verb verb, boolean isCrossNodeTimeout)
+    public void incrementDroppedMessages(Verb verb, boolean isCrossNode)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
-        incrementDroppedMessages(droppedMessagesMap.get(verb), isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessagesMap.get(verb), isCrossNode);
     }
 
     private void updateDroppedMutationCount(IMutation mutation)
@@ -1189,19 +1189,19 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    private void incrementDroppedMessages(DroppedMessages droppedMessages, long timeTaken, boolean isCrossNodeTimeout)
+    private void incrementDroppedMessages(DroppedMessages droppedMessages, long timeTaken, boolean isCrossNode)
     {
-        if (isCrossNodeTimeout)
+        if (isCrossNode)
             droppedMessages.metrics.crossNodeDroppedLatency.update(timeTaken, TimeUnit.MILLISECONDS);
         else
             droppedMessages.metrics.internalDroppedLatency.update(timeTaken, TimeUnit.MILLISECONDS);
-        incrementDroppedMessages(droppedMessages, isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessages, isCrossNode);
     }
 
-    private void incrementDroppedMessages(DroppedMessages droppedMessages, boolean isCrossNodeTimeout)
+    private void incrementDroppedMessages(DroppedMessages droppedMessages, boolean isCrossNode)
     {
         droppedMessages.metrics.dropped.mark();
-        if (isCrossNodeTimeout)
+        if (isCrossNode && DatabaseDescriptor.hasCrossNodeTimeout())
             droppedMessages.droppedCrossNodeTimeout.incrementAndGet();
         else
             droppedMessages.droppedInternalTimeout.incrementAndGet();
