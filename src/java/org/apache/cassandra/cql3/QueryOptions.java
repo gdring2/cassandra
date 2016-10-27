@@ -365,7 +365,7 @@ public abstract class QueryOptions
 
     private static class Codec implements CBCodec<QueryOptions>
     {
-        private static enum Flag
+        private enum Flag
         {
             // The order of that enum matters!!
             VALUES,
@@ -401,7 +401,9 @@ public abstract class QueryOptions
         public QueryOptions decode(ByteBuf body, ProtocolVersion version)
         {
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
+            EnumSet<Flag> flags = Flag.deserialize(version.compareTo(ProtocolVersion.V5) >= 0
+                                                   ? body.readInt()
+                                                   : (int)body.readByte());
 
             List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
             List<String> names = null;
@@ -449,7 +451,10 @@ public abstract class QueryOptions
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
             EnumSet<Flag> flags = gatherFlags(options);
-            dest.writeByte((byte)Flag.serialize(flags));
+            if (version.compareTo(ProtocolVersion.V5) >= 0)
+                dest.writeInt(Flag.serialize(flags));
+            else
+                dest.writeByte((byte)Flag.serialize(flags));
 
             if (flags.contains(Flag.VALUES))
                 CBUtil.writeValueList(options.getValues(), dest);
@@ -474,7 +479,7 @@ public abstract class QueryOptions
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
             EnumSet<Flag> flags = gatherFlags(options);
-            size += 1;
+            size += (version.compareTo(ProtocolVersion.V5) >= 0 ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
                 size += CBUtil.sizeOfValueList(options.getValues());

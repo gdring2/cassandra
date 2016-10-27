@@ -26,8 +26,6 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import joptsimple.internal.Strings;
-
 /**
  * The native protocol version.
  *
@@ -116,7 +114,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public static String invalidVersionMessage(int version)
     {
         return String.format("Invalid or unsupported protocol version (%d); supported versions are (%s)",
-                             version, Strings.join(ProtocolVersion.supportedVersions(), ", "));
+                             version, String.join(", ", ProtocolVersion.supportedVersions()));
     }
 
     public int asInt()
@@ -127,6 +125,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     @Override
     public String toString()
     {
+        // This format is mandated by the protocl specs for the SUPPORTED message, see OptionsMessage execute().
         return String.format("%d/%s", num, descr);
     }
 }
