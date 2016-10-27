@@ -77,23 +77,33 @@ public class MessagingServiceTest
     {
         MessagingService.Verb verb = MessagingService.Verb.READ;
 
-        for (int i = 1; i <= 5000; i++)
-            messagingService.incrementDroppedMessages(verb, i, i % 2 == 0);
+        boolean crossNodeTimeout = DatabaseDescriptor.hasCrossNodeTimeout();
+        DatabaseDescriptor.setCrossNodeTimeout(true);
 
-        List<String> logs = messagingService.getDroppedMessagesLogs();
-        assertEquals(1, logs.size());
-        assertEquals("READ messages were dropped in last 5000 ms: 2500 for internal timeout and 2500 for cross node timeout. Mean internal dropped latency: 2730 ms and Mean cross-node dropped latency: 2731 ms", logs.get(0));
-        assertEquals(5000, (int)messagingService.getDroppedMessages().get(verb.toString()));
+        try
+        {
+            for (int i = 1; i <= 5000; i++)
+                messagingService.incrementDroppedMessages(verb, i, i % 2 == 0);
 
-        logs = messagingService.getDroppedMessagesLogs();
-        assertEquals(0, logs.size());
+            List<String> logs = messagingService.getDroppedMessagesLogs();
+            assertEquals(1, logs.size());
+            assertEquals("READ messages were dropped in last 5000 ms: 2500 for internal timeout and 2500 for cross node timeout. Mean internal dropped latency: 2730 ms and Mean cross-node dropped latency: 2731 ms", logs.get(0));
+            assertEquals(5000, (int) messagingService.getDroppedMessages().get(verb.toString()));
 
-        for (int i = 0; i < 2500; i++)
-            messagingService.incrementDroppedMessages(verb, i, i % 2 == 0);
+            logs = messagingService.getDroppedMessagesLogs();
+            assertEquals(0, logs.size());
 
-        logs = messagingService.getDroppedMessagesLogs();
-        assertEquals("READ messages were dropped in last 5000 ms: 1250 for internal timeout and 1250 for cross node timeout. Mean internal dropped latency: 2277 ms and Mean cross-node dropped latency: 2278 ms", logs.get(0));
-        assertEquals(7500, (int)messagingService.getDroppedMessages().get(verb.toString()));
+            for (int i = 0; i < 2500; i++)
+                messagingService.incrementDroppedMessages(verb, i, i % 2 == 0);
+
+            logs = messagingService.getDroppedMessagesLogs();
+            assertEquals("READ messages were dropped in last 5000 ms: 1250 for internal timeout and 1250 for cross node timeout. Mean internal dropped latency: 2277 ms and Mean cross-node dropped latency: 2278 ms", logs.get(0));
+            assertEquals(7500, (int) messagingService.getDroppedMessages().get(verb.toString()));
+        }
+        finally
+        {
+            DatabaseDescriptor.setCrossNodeTimeout(crossNodeTimeout);
+        }
     }
 
     @Test
@@ -108,7 +118,7 @@ public class MessagingServiceTest
         long sentAt = now - latency;
 
         assertNull(dcLatency.get("datacenter1"));
-        addDCLatency(sentAt, now);
+        addDCLatency(sentAt);
         assertNotNull(dcLatency.get("datacenter1"));
         assertEquals(1, dcLatency.get("datacenter1").getCount());
         long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, TimeUnit.MILLISECONDS.toNanos(latency))) - 1];
@@ -128,7 +138,7 @@ public class MessagingServiceTest
         long sentAt = now - latency;
 
         assertNull(dcLatency.get("datacenter1"));
-        addDCLatency(sentAt, now);
+        addDCLatency(sentAt);
         assertNull(dcLatency.get("datacenter1"));
     }
 
@@ -221,7 +231,7 @@ public class MessagingServiceTest
         assertFalse(MockBackPressureStrategy.applied);
     }
 
-    private static void addDCLatency(long sentAt, long now) throws IOException
+    private static void addDCLatency(long sentAt) throws IOException
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (DataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos))
@@ -229,7 +239,7 @@ public class MessagingServiceTest
             out.writeInt((int) sentAt);
         }
         DataInputStreamPlus in = new DataInputStreamPlus(new ByteArrayInputStream(baos.toByteArray()));
-        MessageIn.readTimestamp(InetAddress.getLocalHost(), in, now);
+        MessageIn.readConstructionTime(InetAddress.getLocalHost(), in);
     }
 
     public static class MockBackPressureStrategy implements BackPressureStrategy<MockBackPressureStrategy.MockBackPressureState>

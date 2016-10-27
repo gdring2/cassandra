@@ -1434,6 +1434,12 @@ public class DatabaseDescriptor
         return conf.cross_node_timeout;
     }
 
+    @VisibleForTesting
+    public static void setCrossNodeTimeout(boolean crossNodeTimeout)
+    {
+        conf.cross_node_timeout = crossNodeTimeout;
+    }
+
     public static long getSlowQueryTimeout()
     {
         return conf.slow_query_log_timeout_in_ms;
