@@ -89,7 +89,7 @@ public class ErrorMessage extends Message.Response
                         int failure = body.readInt();
 
                         Map<InetAddress, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
-                        if (version.compareTo(ProtocolVersion.V5) >= 0)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (int i = 0; i < failure; i++)
                             {
@@ -190,7 +190,7 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         dest.writeInt(rfe.failureReasonByEndpoint.size());
 
-                        if (version.compareTo(ProtocolVersion.V5) >= 0)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
@@ -255,7 +255,7 @@ public class ErrorMessage extends Message.Response
                         size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
                         size += isWrite ? CBUtil.sizeOfString(((WriteFailureException)rfe).writeType.toString()) : 1;
 
-                        if (version.compareTo(ProtocolVersion.V5) >= 0)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
@@ -294,7 +294,7 @@ public class ErrorMessage extends Message.Response
 
     private static TransportException getBackwardsCompatibleException(ErrorMessage msg, ProtocolVersion version)
     {
-        if (version.compareTo(ProtocolVersion.V4) < 0)
+        if (version.isSmallerThan(ProtocolVersion.V4))
         {
             switch (msg.error.code())
             {

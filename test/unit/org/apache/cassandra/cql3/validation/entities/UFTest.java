@@ -1855,11 +1855,11 @@ public class UFTest extends CQLTester
             catch (com.datastax.driver.core.exceptions.FunctionExecutionException fee)
             {
                 // Java driver neither throws FunctionExecutionException nor does it set the exception code correctly
-                Assert.assertTrue(version.compareTo(ProtocolVersion.V4) >= 0);
+                Assert.assertTrue(version.isGreaterOrEqualTo(ProtocolVersion.V4));
             }
             catch (InvalidQueryException e)
             {
-                Assert.assertTrue(version.compareTo(ProtocolVersion.V4) < 0);
+                Assert.assertTrue(version.isSmallerThan(ProtocolVersion.V4));
             }
         }
     }

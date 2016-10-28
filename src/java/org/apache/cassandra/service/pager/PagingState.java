@@ -62,7 +62,7 @@ public class PagingState
             ByteBuffer pk;
             RowMark mark;
             int remaining, remainingInPartition;
-            if (protocolVersion.compareTo(ProtocolVersion.V3) <= 0)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 pk = ByteBufferUtil.readWithShortLength(in);
                 mark = new RowMark(ByteBufferUtil.readWithShortLength(in), protocolVersion);
@@ -98,7 +98,7 @@ public class PagingState
         {
             ByteBuffer pk = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
             ByteBuffer mark = rowMark == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : rowMark.mark;
-            if (protocolVersion.compareTo(ProtocolVersion.V3) <= 0)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 ByteBufferUtil.writeWithShortLength(pk, out);
                 ByteBufferUtil.writeWithShortLength(mark, out);
@@ -125,7 +125,7 @@ public class PagingState
         assert rowMark == null || protocolVersion == rowMark.protocolVersion;
         ByteBuffer pk = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
         ByteBuffer mark = rowMark == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : rowMark.mark;
-        if (protocolVersion.compareTo(ProtocolVersion.V3) <= 0)
+        if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
         {
             return ByteBufferUtil.serializedSizeWithShortLength(pk)
                  + ByteBufferUtil.serializedSizeWithShortLength(mark)
@@ -205,7 +205,7 @@ public class PagingState
         public static RowMark create(CFMetaData metadata, Row row, ProtocolVersion protocolVersion)
         {
             ByteBuffer mark;
-            if (protocolVersion.compareTo(ProtocolVersion.V3) <= 0)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 // We need to be backward compatible with 2.1/2.2 nodes paging states. Which means we have to send
                 // the full cellname of the "last" cell in the row we get (since that's how 2.1/2.2 nodes will start after
@@ -238,7 +238,7 @@ public class PagingState
             if (mark == null)
                 return null;
 
-            return protocolVersion.compareTo(ProtocolVersion.V3) <= 0
+            return protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3)
                  ? LegacyLayout.decodeClustering(metadata, mark)
                  : Clustering.serializer.deserialize(mark, MessagingService.VERSION_30, makeClusteringTypes(metadata));
         }

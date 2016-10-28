@@ -40,7 +40,7 @@ public class CredentialsMessage extends Message.Request
     {
         public CredentialsMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            if (version.compareTo(ProtocolVersion.V1) > 0)
+            if (version.isGreaterThan(ProtocolVersion.V1))
                 throw new ProtocolException("Legacy credentials authentication is not supported in " +
                         "protocol versions > 1. Please use SASL authentication via a SaslResponse message");
 

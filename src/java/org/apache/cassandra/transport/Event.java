@@ -271,7 +271,7 @@ public abstract class Event
         public static SchemaChange deserializeEvent(ByteBuf cb, ProtocolVersion version)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
-            if (version.compareTo(ProtocolVersion.V3) >= 0)
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 Target target = CBUtil.readEnumValue(Target.class, cb);
                 String keyspace = CBUtil.readString(cb);
@@ -294,7 +294,7 @@ public abstract class Event
         {
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
-                if (version.compareTo(ProtocolVersion.V4) >= 0)
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     // available since protocol version 4
                     CBUtil.writeEnumValue(change, dest);
@@ -307,7 +307,7 @@ public abstract class Event
                 {
                     // not available in protocol versions < 4 - just say the keyspace was updated.
                     CBUtil.writeEnumValue(Change.UPDATED, dest);
-                    if (version.compareTo(ProtocolVersion.V3) >= 0)
+                    if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
                         CBUtil.writeEnumValue(Target.KEYSPACE, dest);
                     CBUtil.writeString(keyspace, dest);
                     CBUtil.writeString("", dest);
@@ -315,7 +315,7 @@ public abstract class Event
                 return;
             }
 
-            if (version.compareTo(ProtocolVersion.V3) >= 0)
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 CBUtil.writeEnumValue(change, dest);
                 CBUtil.writeEnumValue(target, dest);
@@ -346,13 +346,13 @@ public abstract class Event
         {
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
-                if (version.compareTo(ProtocolVersion.V4) >= 0)
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                     return CBUtil.sizeOfEnumValue(change)
                                + CBUtil.sizeOfEnumValue(target)
                                + CBUtil.sizeOfString(keyspace)
                                + CBUtil.sizeOfString(name)
                                + CBUtil.sizeOfStringList(argTypes);
-                if (version.compareTo(ProtocolVersion.V3) >= 0)
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
                     return CBUtil.sizeOfEnumValue(Change.UPDATED)
                            + CBUtil.sizeOfEnumValue(Target.KEYSPACE)
                            + CBUtil.sizeOfString(keyspace);
@@ -361,7 +361,7 @@ public abstract class Event
                        + CBUtil.sizeOfString("");
             }
 
-            if (version.compareTo(ProtocolVersion.V3) >= 0)
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 int size = CBUtil.sizeOfEnumValue(change)
                          + CBUtil.sizeOfEnumValue(target)

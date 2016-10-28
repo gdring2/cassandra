@@ -24,13 +24,8 @@ import java.nio.ByteBuffer;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -43,24 +38,6 @@ public class PagingStateTest
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
-    }
-
-    private PagingState makeSomePagingState(ProtocolVersion protocolVersion)
-    {
-        CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
-                                                .addPartitionKey("k", AsciiType.instance)
-                                                .addClusteringColumn("c1", AsciiType.instance)
-                                                .addClusteringColumn("c1", Int32Type.instance)
-                                                .addRegularColumn("myCol", AsciiType.instance)
-                                                .build();
-
-        ByteBuffer pk = ByteBufferUtil.bytes("someKey");
-
-        ColumnDefinition def = metadata.getColumnDefinition(new ColumnIdentifier("myCol", false));
-        Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
-        Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
-        return new PagingState(pk, mark, 10, 0);
     }
 
     @Test
@@ -78,7 +55,7 @@ public class PagingStateTest
          *     PagingState state = new PagingState(pk, cn.toByteBuffer(), 10);
          *     System.out.println("PagingState = " + ByteBufferUtil.bytesToHex(state.serialize()));
          */
-        PagingState state = makeSomePagingState(ProtocolVersion.V3);
+        PagingState state = Util.makeSomePagingState(ProtocolVersion.V3);
 
         String serializedState = ByteBufferUtil.bytesToHex(state.serialize(ProtocolVersion.V3));
         // Note that we don't assert exact equality because we know 3.0 nodes include the "remainingInPartition" number
@@ -90,7 +67,7 @@ public class PagingStateTest
     @Test
     public void testSerializeDeserializeV3()
     {
-        PagingState state = makeSomePagingState(ProtocolVersion.V3);
+        PagingState state = Util.makeSomePagingState(ProtocolVersion.V3);
         ByteBuffer serialized = state.serialize(ProtocolVersion.V3);
         assertEquals(serialized.remaining(), state.serializedSize(ProtocolVersion.V3));
         assertEquals(state, PagingState.deserialize(serialized, ProtocolVersion.V3));
@@ -99,7 +76,7 @@ public class PagingStateTest
     @Test
     public void testSerializeDeserializeV4()
     {
-        PagingState state = makeSomePagingState(ProtocolVersion.V4);
+        PagingState state = Util.makeSomePagingState(ProtocolVersion.V4);
         ByteBuffer serialized = state.serialize(ProtocolVersion.V4);
         assertEquals(serialized.remaining(), state.serializedSize(ProtocolVersion.V4));
         assertEquals(state, PagingState.deserialize(serialized, ProtocolVersion.V4));

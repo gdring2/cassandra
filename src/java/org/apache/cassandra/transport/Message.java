@@ -275,7 +275,7 @@ public abstract class Message
 
             try
             {
-                if (isCustomPayload && frame.header.version.compareTo(ProtocolVersion.V4) < 0)
+                if (isCustomPayload && frame.header.version.isSmallerThan(ProtocolVersion.V4))
                     throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
 
                 Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
@@ -336,13 +336,13 @@ public abstract class Message
                     List<String> warnings = ((Response)message).getWarnings();
                     if (warnings != null)
                     {
-                        if (version.compareTo(ProtocolVersion.V4) < 0)
+                        if (version.isSmallerThan(ProtocolVersion.V4))
                             throw new ProtocolException("Must not send frame with WARNING flag for native protocol version < 4");
                         messageSize += CBUtil.sizeOfStringList(warnings);
                     }
                     if (customPayload != null)
                     {
-                        if (version.compareTo(ProtocolVersion.V4) < 0)
+                        if (version.isSmallerThan(ProtocolVersion.V4))
                             throw new ProtocolException("Must not send frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
                         messageSize += CBUtil.sizeOfBytesMap(customPayload);
                     }
@@ -508,7 +508,7 @@ public abstract class Message
             {
                 assert request.connection() instanceof ServerConnection;
                 connection = (ServerConnection)request.connection();
-                if (connection.getVersion().compareTo(ProtocolVersion.V4) >= 0)
+                if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
                     ClientWarn.instance.captureWarnings();
 
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());

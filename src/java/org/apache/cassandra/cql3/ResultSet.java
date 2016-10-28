@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.transport.*;
@@ -296,6 +299,35 @@ public class ResultSet
         }
 
         @Override
+        public boolean equals(Object other)
+        {
+            if (this == other)
+                return true;
+
+            if (!(other instanceof ResultMetadata))
+                return false;
+
+            ResultMetadata that = (ResultMetadata) other;
+            return new EqualsBuilder()
+                   .append(flags, that.flags)
+                   .append(names, that.names)
+                   .append(columnCount, that.columnCount)
+                   .append(pagingState, that.pagingState)
+                   .isEquals();
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return new HashCodeBuilder(17, 31)
+                   .append(flags)
+                   .append(names)
+                   .append(columnCount)
+                   .append(pagingState)
+                   .toHashCode();
+        }
+
+        @Override
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
@@ -364,7 +396,7 @@ public class ResultSet
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
 
-                assert version.compareTo(ProtocolVersion.V1) > 0 || (!hasMorePages && !noMetadata)
+                assert version.isGreaterThan(ProtocolVersion.V1) || (!hasMorePages && !noMetadata)
                     : "version = " + version + ", flags = " + m.flags;
 
                 dest.writeInt(Flag.serialize(m.flags));
@@ -463,13 +495,28 @@ public class ResultSet
         @Override
         public boolean equals(Object other)
         {
+            if (this == other)
+                return true;
+
             if (!(other instanceof PreparedMetadata))
                 return false;
 
             PreparedMetadata that = (PreparedMetadata) other;
-            return this.names.equals(that.names) &&
-                   this.flags.equals(that.flags) &&
-                   Arrays.equals(this.partitionKeyBindIndexes, that.partitionKeyBindIndexes);
+            return new EqualsBuilder()
+                   .append(flags, that.flags)
+                   .append(names, that.names)
+                   .append(partitionKeyBindIndexes, that.partitionKeyBindIndexes)
+                   .isEquals();
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return new HashCodeBuilder(17, 31)
+                   .append(flags)
+                   .append(names)
+                   .append(partitionKeyBindIndexes)
+                   .toHashCode();
         }
 
         @Override
@@ -508,7 +555,7 @@ public class ResultSet
                 EnumSet<Flag> flags = Flag.deserialize(iflags);
 
                 short[] partitionKeyBindIndexes = null;
-                if (version.compareTo(ProtocolVersion.V4) >= 0)
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     int numPKNames = body.readInt();
                     if (numPKNames > 0)
@@ -548,7 +595,7 @@ public class ResultSet
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.names.size());
 
-                if (version.compareTo(ProtocolVersion.V4) >= 0)
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     // there's no point in providing partition key bind indexes if the statements affect multiple tables
                     if (m.partitionKeyBindIndexes == null || !globalTablesSpec)
@@ -591,7 +638,7 @@ public class ResultSet
                     size += CBUtil.sizeOfString(m.names.get(0).cfName);
                 }
 
-                if (m.partitionKeyBindIndexes != null && version.compareTo(ProtocolVersion.V4) >= 0)
+                if (m.partitionKeyBindIndexes != null && version.isGreaterOrEqualTo(ProtocolVersion.V4))
                     size += 4 + 2 * m.partitionKeyBindIndexes.length;
 
                 for (ColumnSpecification name : m.names)
@@ -609,7 +656,7 @@ public class ResultSet
         }
     }
 
-    public static enum Flag
+    public enum Flag
     {
         // The order of that enum matters!!
         GLOBAL_TABLES_SPEC,

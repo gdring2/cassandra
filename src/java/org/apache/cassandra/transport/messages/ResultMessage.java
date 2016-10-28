@@ -241,7 +241,7 @@ public abstract class ResultMessage extends Message.Response
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
-                if (version.compareTo(ProtocolVersion.V1) > 0)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     resultMetadata = ResultSet.ResultMetadata.codec.decode(body, version);
 
                 return new Prepared(id, -1, metadata, resultMetadata);
@@ -255,7 +255,7 @@ public abstract class ResultMessage extends Message.Response
 
                 CBUtil.writeBytes(prepared.statementId.bytes, dest);
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
-                if (version.compareTo(ProtocolVersion.V1) > 0)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     ResultSet.ResultMetadata.codec.encode(prepared.resultMetadata, dest, version);
             }
 
@@ -268,7 +268,7 @@ public abstract class ResultMessage extends Message.Response
                 int size = 0;
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
-                if (version.compareTo(ProtocolVersion.V1) > 0)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);
                 return size;
             }

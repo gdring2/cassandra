@@ -276,7 +276,7 @@ public class Frame
 
             // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
             // connect with the v1/v2 protocol. See CASSANDRA-11464.
-            if (frame.header.version.compareTo(ProtocolVersion.V3) >= 0)
+            if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
                 header.writeShort(frame.header.streamId);
             else
                 header.writeByte(frame.header.streamId);

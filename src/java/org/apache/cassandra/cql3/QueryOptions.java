@@ -401,8 +401,8 @@ public abstract class QueryOptions
         public QueryOptions decode(ByteBuf body, ProtocolVersion version)
         {
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            EnumSet<Flag> flags = Flag.deserialize(version.compareTo(ProtocolVersion.V5) >= 0
-                                                   ? (int)body.readUnsignedInt()
+            EnumSet<Flag> flags = Flag.deserialize(version.isGreaterOrEqualTo(ProtocolVersion.V5)
+                                                   ? body.readInt()
                                                    : (int)body.readByte());
 
             List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
@@ -451,7 +451,7 @@ public abstract class QueryOptions
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
             EnumSet<Flag> flags = gatherFlags(options);
-            if (version.compareTo(ProtocolVersion.V5) >= 0)
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 dest.writeInt(Flag.serialize(flags));
             else
                 dest.writeByte((byte)Flag.serialize(flags));
@@ -479,7 +479,7 @@ public abstract class QueryOptions
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
             EnumSet<Flag> flags = gatherFlags(options);
-            size += (version.compareTo(ProtocolVersion.V5) >= 0 ? 4 : 1);
+            size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
                 size += CBUtil.sizeOfValueList(options.getValues());

@@ -26,11 +26,15 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 /**
- * The native protocol version.
+ * The native (CQL binary) protocol version.
  *
  * Some versions may be in beta, which means that the client must
  * specify the beta flag in the frame for the version to be considered valid.
+ * Beta versions must have the word "beta" in their description, this is mandated
+ * by the specs.
  *
  */
 public enum ProtocolVersion implements Comparable<ProtocolVersion>
@@ -127,5 +131,29 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     {
         // This format is mandated by the protocl specs for the SUPPORTED message, see OptionsMessage execute().
         return String.format("%d/%s", num, descr);
+    }
+
+    @Inline
+    public final boolean isGreaterThan(ProtocolVersion other)
+    {
+        return num > other.num;
+    }
+
+    @Inline
+    public final boolean isGreaterOrEqualTo(ProtocolVersion other)
+    {
+        return num >= other.num;
+    }
+
+    @Inline
+    public final boolean isSmallerThan(ProtocolVersion other)
+    {
+        return num < other.num;
+    }
+
+    @Inline
+    public final boolean isSmallerOrEqualTo(ProtocolVersion other)
+    {
+        return num <= other.num;
     }
 }
